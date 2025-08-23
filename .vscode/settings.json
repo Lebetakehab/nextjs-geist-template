@@ -1,0 +1,6 @@
+{
+    "task.autoDetect": "off",
+    "typescript.tsc.autoDetect": "off",
+    "workbench.activityBar.location": "hidden",
+    "workbench.statusBar.visible": false
+}
