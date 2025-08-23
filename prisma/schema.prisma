@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  hashedPassword String?
+  name           String?
+  role           String   @default("SENDER") // UserRole as string
+  teamId         String?
+  team           Team?    @relation(fields: [teamId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Team {
+  id             String          @id @default(cuid())
+  name           String
+  users          User[]
+  contacts       Contact[]
+  importBatches  ImportBatch[]
+  templates      Template[]
+  batchCampaigns BatchCampaign[]
+  campaigns      Campaign[]
+  mediaAssets    MediaAsset[]
+  wabaConfig     WabaConfig?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("teams")
+}
+
+model WabaConfig {
+  id                    String   @id @default(cuid())
+  teamId                String   @unique
+  team                  Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  wabaPhoneNumberId     String
+  wabaBusinessId        String
+  accessToken           String // Encrypted
+  webhookVerifyToken    String
+  connectionStatus      String   @default("PENDING") // ConnectionStatus as string
+  verifiedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("waba_configs")
+}
+
+model Contact {
+  id           String       @id @default(cuid())
+  teamId       String
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  e164         String // Phone number in E.164 format
+  name         String?
+  customFields String? // Store additional contact fields as JSON string
+  optInAt      DateTime?
+  status       String       @default("ACTIVE") // ContactStatus as string
+  messageJobs  MessageJob[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([teamId, e164])
+  @@map("contacts")
+}
+
+model ImportBatch {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  filename    String
+  totalRows   Int
+  validRows   Int
+  invalidRows Int
+  status      String   @default("PROCESSING") // BatchStatus as string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("import_batches")
+}
+
+model Template {
+  id         String     @id @default(cuid())
+  teamId     String
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name       String
+  namespace  String
+  language   String     @default("en")
+  components String // WhatsApp template components as JSON string
+  status     String     @default("PENDING") // TemplateStatus as string
+  campaigns  Campaign[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([teamId, name])
+  @@map("templates")
+}
+
+model BatchCampaign {
+  id              String     @id @default(cuid())
+  teamId          String
+  team            Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name            String
+  totalContacts   Int
+  numSubCampaigns Int
+  status          String     @default("DRAFT") // CampaignStatus as string
+  campaigns       Campaign[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("batch_campaigns")
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  batchCampaignId String?
+  batchCampaign   BatchCampaign? @relation(fields: [batchCampaignId], references: [id], onDelete: Cascade)
+  teamId          String
+  team            Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name            String
+  templateId      String?
+  template        Template?      @relation(fields: [templateId], references: [id])
+  scheduleAt      DateTime?
+  status          String         @default("DRAFT") // CampaignStatus as string
+  messageJobs     MessageJob[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("campaigns")
+}
+
+model MessageJob {
+  id                  String   @id @default(cuid())
+  campaignId          String
+  campaign            Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId           String
+  contact             Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  payload             String // Message content and media references as JSON string
+  status              String   @default("QUEUED") // MessageStatus as string
+  providerMessageId   String?
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  failureReason       String?
+  retryCount          Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("message_jobs")
+}
+
+model MediaAsset {
+  id              String   @id @default(cuid())
+  teamId          String
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  type            String // MediaType as string
+  filename        String
+  url             String // Local or S3 URL
+  providerMediaId String? // WhatsApp Media ID
+  size            Int // File size in bytes
+  metadata        String? // Additional metadata as JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("media_assets")
+}
